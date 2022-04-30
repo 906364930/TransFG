@@ -25,8 +25,10 @@ from utils.dist_util import get_world_size
 
 logger = logging.getLogger(__name__)
 
+
 class AverageMeter(object):
     """Computes and stores the average and current value"""
+
     def __init__(self):
         self.reset()
 
@@ -42,14 +44,17 @@ class AverageMeter(object):
         self.count += n
         self.avg = self.sum / self.count
 
+
 def simple_accuracy(preds, labels):
     return (preds == labels).mean()
+
 
 def reduce_mean(tensor, nprocs):
     rt = tensor.clone()
     dist.all_reduce(rt, op=dist.ReduceOp.SUM)
     rt /= nprocs
     return rt
+
 
 def save_model(args, model):
     model_to_save = model.module if hasattr(model, 'module') else model
@@ -65,6 +70,7 @@ def save_model(args, model):
         }
     torch.save(checkpoint, model_checkpoint)
     logger.info("Saved model checkpoint to [DIR: %s]", args.output_dir)
+
 
 def setup(args):
     # Prepare model
@@ -83,11 +89,13 @@ def setup(args):
     elif args.dataset == "INat2017":
         num_classes = 5089
 
-    model = VisionTransformer(config, args.img_size, zero_head=True, num_classes=num_classes,                                                   smoothing_value=args.smoothing_value)
+    model = VisionTransformer(config, args.img_size, zero_head=True, num_classes=num_classes,
+                              smoothing_value=args.smoothing_value)
 
-    model.load_from(np.load(args.pretrained_dir))
+    # model.load_from(np.load(args.pretrained_dir))
     if args.pretrained_model is not None:
-        pretrained_model = torch.load(args.pretrained_model)['model']
+        pretrained_model = torch.load("/root/transfg_learn/model_weight/sample_run_checkpoint.bin",
+                                      map_location=torch.device('cpu'))['model']
         model.load_state_dict(pretrained_model)
     model.to(args.device)
     num_params = count_parameters(model)
@@ -97,9 +105,11 @@ def setup(args):
     logger.info("Total Parameter: \t%2.1fM" % num_params)
     return args, model
 
+
 def count_parameters(model):
     params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    return params/1000000
+    return params / 1000000
+
 
 def set_seed(args):
     random.seed(args.seed)
@@ -107,6 +117,7 @@ def set_seed(args):
     torch.manual_seed(args.seed)
     if args.n_gpu > 0:
         torch.cuda.manual_seed_all(args.seed)
+
 
 def valid(args, model, writer, test_loader, global_step):
     # Validation!
@@ -162,8 +173,9 @@ def valid(args, model, writer, test_loader, global_step):
     logger.info("Valid Accuracy: %2.5f" % val_accuracy)
     if args.local_rank in [-1, 0]:
         writer.add_scalar("test/accuracy", scalar_value=val_accuracy, global_step=global_step)
-        
+
     return val_accuracy
+
 
 def train(args, model):
     """ Train the model """
@@ -191,7 +203,7 @@ def train(args, model):
         model, optimizer = amp.initialize(models=model,
                                           optimizers=optimizer,
                                           opt_level=args.fp16_opt_level)
-        amp._amp_state.loss_scalers[0]._loss_scale = 2**20
+        amp._amp_state.loss_scalers[0]._loss_scale = 2 ** 20
 
     # Distributed training
     if args.local_rank != -1:
@@ -248,7 +260,7 @@ def train(args, model):
                 loss.backward()
 
             if (step + 1) % args.gradient_accumulation_steps == 0:
-                losses.update(loss.item()*args.gradient_accumulation_steps)
+                losses.update(loss.item() * args.gradient_accumulation_steps)
                 if args.fp16:
                     torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), args.max_grad_norm)
                 else:
@@ -293,12 +305,14 @@ def train(args, model):
     end_time = time.time()
     logger.info("Total Training Time: \t%f" % ((end_time - start_time) / 3600))
 
+
 def main():
     parser = argparse.ArgumentParser()
     # Required parameters
-    parser.add_argument("--name", required=True,
+    parser.add_argument("--name", required=False, default='debug',
                         help="Name of this run. Used for monitoring.")
-    parser.add_argument("--dataset", choices=["CUB_200_2011", "car", "dog", "nabirds", "INat2017"], default="CUB_200_2011",
+    parser.add_argument("--dataset", choices=["CUB_200_2011", "car", "dog", "nabirds", "INat2017"],
+                        default="CUB_200_2011",
                         help="Which dataset.")
     parser.add_argument('--data_root', type=str, default='/opt/tiger/minist')
     parser.add_argument("--model_type", choices=["ViT-B_16", "ViT-B_32", "ViT-L_16",
@@ -307,7 +321,7 @@ def main():
                         help="Which variant to use.")
     parser.add_argument("--pretrained_dir", type=str, default="/opt/tiger/minist/ViT-B_16.npz",
                         help="Where to search for pretrained ViT models.")
-    parser.add_argument("--pretrained_model", type=str, default=None,
+    parser.add_argument("--pretrained_model", type=str, default=True,
                         help="load pretrained model")
     parser.add_argument("--output_dir", default="./output", type=str,
                         help="The output directory where checkpoints will be written.")
@@ -357,6 +371,8 @@ def main():
                         help="Split method")
     parser.add_argument('--slide_step', type=int, default=12,
                         help="Slide step for overlap split")
+    parser.add_argument('--server', type=str, default="automl",
+                        help="choose server")
 
     args = parser.parse_args()
 
@@ -385,11 +401,16 @@ def main():
 
     # Set seed
     set_seed(args)
-
+    if args.server == 'automl':
+        args.data_root = "/root/autodl-tmp/CUB_200_2011"
+        args.pretrained_dir = "/root/transfg_learn/model_weight/ViT-B_16.npz"
     # Model & Tokenizer Setup
     args, model = setup(args)
+
     # Training
     train(args, model)
 
+
 if __name__ == "__main__":
     main()
+    os.system("shutdown")
