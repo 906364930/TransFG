@@ -145,7 +145,8 @@ def check(W_newx, W_newv, T):
 
 if __name__ == "__main__":
     # weights_ori = torch.load("../weight/sample_run_checkpoint.bin")
-    weights_ori = torch.load("/root/transfg_learn/model_weight/sample_run_checkpoint.bin")
+    weights_ori = torch.load("/root/transfg_learn/model_weight/sample_run_checkpoint.bin",
+                             map_location=torch.device('cpu'))
     weights_new = combine_for_TransFG(weights_ori)
     print('weight transposed')
     torch.save(weights_new, "../weight/sample_run_checkpoint_combine_qkv.bin")

@@ -18,8 +18,8 @@ from torch.utils.tensorboard import SummaryWriter
 from apex import amp
 from apex.parallel import DistributedDataParallel as DDP
 
-from models import modeling
-from models.modeling import VisionTransformer, CONFIGS
+from models import modeling, ori_model
+from models.modeling import VisionTransformer, CONFIGS, dist_loss_fn
 from utils.scheduler import WarmupLinearSchedule, WarmupCosineSchedule
 from utils.data_utils import get_loader
 from utils.dist_util import get_world_size
@@ -91,19 +91,27 @@ def setup(args):
         num_classes = 5089
 
     model = modeling.VisionTransformer(config=config, img_size=448)
+    teacher_model = ori_model.VisionTransformer(config=config, img_size=448)
+
     model_dict = torch.load("./weight/sample_run_checkpoint_combine_qkv.bin",
                             map_location=torch.device('cpu'))['model']
     model.load_state_dict(model_dict)
+
+    teacher_model_dict = torch.load("./weight/sample_run_checkpoint.bin",
+                                    map_location=torch.device('cpu'))['model']
+    teacher_model.load_state_dict(teacher_model_dict)
+
     for param in model.parameters():
         if param.shape != torch.Size([12, 64, 64]):
             param.requires_grad = False
     model.to(args.device)
+    teacher_model.to(args.device)
     num_params = count_parameters(model)
 
     logger.info("{}".format(config))
     logger.info("Training parameters %s", args)
     logger.info("Total Parameter: \t%2.1fM" % num_params)
-    return args, model
+    return args, model, teacher_model
 
 
 def count_parameters(model):
@@ -177,7 +185,7 @@ def valid(args, model, writer, test_loader, global_step):
     return val_accuracy
 
 
-def train(args, model):
+def train(args, model, teacher_model):
     """ Train the model """
     if args.local_rank in [-1, 0]:
         os.makedirs(args.output_dir, exist_ok=True)
@@ -236,6 +244,10 @@ def train(args, model):
             x, y = batch
 
             loss, logits = model(x, y)
+            with torch.no_grad():
+                teacher_logits = teacher_model(x)
+            dist_loss = dist_loss_fn(logits, teacher_logits)
+            loss += dist_loss
             loss = loss.mean()
 
             preds = torch.argmax(logits, dim=-1)
@@ -405,14 +417,13 @@ def main():
         args.data_root = "/root/autodl-tmp/CUB_200_2011"
         args.pretrained_dir = "/root/transfg_learn/model_weight/ViT-B_16.npz"
     # Model & Tokenizer Setup
-    args, model = setup(args)
+    args, model, teacher_model = setup(args)
 
     # Training
-    train(args, model)
+    train(args, model, teacher_model)
     if args.server == 'automl':
         os.system("shutdown")
 
 
 if __name__ == "__main__":
     main()
-
