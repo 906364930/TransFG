@@ -144,7 +144,8 @@ def check(W_newx, W_newv, T):
 
 
 if __name__ == "__main__":
-    weights_ori = torch.load("/home/luoqinglu/TransFg-with-git/weight/sample_run_checkpoint.bin")
+    # weights_ori = torch.load("../weight/sample_run_checkpoint.bin")
+    weights_ori = torch.load("/root/transfg_learn/model_weight/sample_run_checkpoint.bin")
     weights_new = combine_for_TransFG(weights_ori)
     print('weight transposed')
-    torch.save(weights_new, "/home/luoqinglu/TransFg-with-git/weight/sample_run_checkpoint_combine_qkv.bin")
+    torch.save(weights_new, "../weight/sample_run_checkpoint_combine_qkv.bin")

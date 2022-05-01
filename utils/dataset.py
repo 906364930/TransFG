@@ -1,6 +1,6 @@
 import os
 import json
-import imageio.v2 as imageio
+import imageio
 from os.path import join
 
 import numpy as np

@@ -18,6 +18,7 @@ from torch.utils.tensorboard import SummaryWriter
 from apex import amp
 from apex.parallel import DistributedDataParallel as DDP
 
+from models import modeling
 from models.modeling import VisionTransformer, CONFIGS
 from utils.scheduler import WarmupLinearSchedule, WarmupCosineSchedule
 from utils.data_utils import get_loader
@@ -89,14 +90,13 @@ def setup(args):
     elif args.dataset == "INat2017":
         num_classes = 5089
 
-    model = VisionTransformer(config, args.img_size, zero_head=True, num_classes=num_classes,
-                              smoothing_value=args.smoothing_value)
-
-    # model.load_from(np.load(args.pretrained_dir))
-    if args.pretrained_model is not None:
-        pretrained_model = torch.load("/root/transfg_learn/model_weight/sample_run_checkpoint.bin",
-                                      map_location=torch.device('cpu'))['model']
-        model.load_state_dict(pretrained_model)
+    model = modeling.VisionTransformer(config=config, img_size=448)
+    model_dict = torch.load("./weight/sample_run_checkpoint_combine_qkv.bin",
+                            map_location=torch.device('cpu'))['model']
+    model.load_state_dict(model_dict)
+    for param in model.parameters():
+        if param.shape != torch.Size([12, 64, 64]):
+            param.requires_grad = False
     model.to(args.device)
     num_params = count_parameters(model)
 
@@ -189,7 +189,7 @@ def train(args, model):
     train_loader, test_loader = get_loader(args)
 
     # Prepare optimizer and scheduler
-    optimizer = torch.optim.SGD(model.parameters(),
+    optimizer = torch.optim.SGD(filter(lambda p: p.requires_grad, model.parameters()),
                                 lr=args.learning_rate,
                                 momentum=0.9,
                                 weight_decay=args.weight_decay)
@@ -314,7 +314,7 @@ def main():
     parser.add_argument("--dataset", choices=["CUB_200_2011", "car", "dog", "nabirds", "INat2017"],
                         default="CUB_200_2011",
                         help="Which dataset.")
-    parser.add_argument('--data_root', type=str, default='/opt/tiger/minist')
+    parser.add_argument('--data_root', type=str, default='/home/luoqinglu/dataset')
     parser.add_argument("--model_type", choices=["ViT-B_16", "ViT-B_32", "ViT-L_16",
                                                  "ViT-L_32", "ViT-H_14"],
                         default="ViT-B_16",
@@ -409,8 +409,10 @@ def main():
 
     # Training
     train(args, model)
+    if args.server == 'automl':
+        os.system("shutdown")
 
 
 if __name__ == "__main__":
     main()
-    os.system("shutdown")
+

@@ -34,13 +34,19 @@ ori_block = modeling.Block(config)
 pb = modeling.PrunedBlock(config)
 
 model = modeling.VisionTransformer(config=config, img_size=448)
-model_dict = torch.load("/home/luoqinglu/TransFg-with-git/weight/sample_run_checkpoint_combine_qkv.bin",
-                        map_location=torch.device('cpu'))['model']
-model.load_state_dict(model_dict)
+# model_dict = torch.load("./weight/sample_run_checkpoint_combine_qkv.bin",
+#                         map_location=torch.device('cpu'))['model']
 
-test_out = model(test_input, test_label)
-test_out2 = model(test_input)
+for param in model.parameters():
+    if param.shape != torch.Size([12, 64, 64]):
+        param.requires_grad = False
 
+
+# model.load_state_dict(model_dict)
+#
+# test_out = model(test_input, test_label)
+# test_out2 = model(test_input)
+#
 # out_with_label = model(test_input, test_label)
 # param = parameter_count_table(model)
 # flops = FlopCountAnalysis(model, test_input)
