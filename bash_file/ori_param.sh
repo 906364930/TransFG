@@ -6,5 +6,4 @@ python3 -m torch.distributed.launch \
 --num_steps 10000 \
 --train_batch_size 16 \
 --fp16 \
---name pruned_qkv_fixed_distill \
-
+--name pruned_qkv_distill_scaled_distloss \

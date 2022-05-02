@@ -455,7 +455,7 @@ def dist_loss_fn(stu_logits, teacher_logits, temperature=8.0):
         reduction='sum',
         log_target=True
     ) * (T * T)
-    return distillation_loss
+    return distillation_loss / stu_logits.size(0)
 
 
 CONFIGS = {

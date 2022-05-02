@@ -101,9 +101,9 @@ def setup(args):
                                     map_location=torch.device('cpu'))['model']
     teacher_model.load_state_dict(teacher_model_dict)
 
-    for param in model.parameters():
-        if param.shape != torch.Size([12, 64, 64]):
-            param.requires_grad = False
+    # for param in model.parameters():
+    #     if param.shape != torch.Size([12, 64, 64]):
+    #         param.requires_grad = False
     model.to(args.device)
     teacher_model.to(args.device)
     num_params = count_parameters(model)
